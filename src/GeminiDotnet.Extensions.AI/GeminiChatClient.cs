@@ -68,6 +68,11 @@ public sealed class GeminiChatClient : IChatClient
     {
         ArgumentNullException.ThrowIfNull(messages);
 
+        if (!messages.Any())
+        {
+            yield break;
+        }
+
         var model = ModelIdHelper.GetModelId(options, _metadata);
         var request = MEAIToGeminiMapper.CreateMappedGenerateContentRequest(messages, options);
 
