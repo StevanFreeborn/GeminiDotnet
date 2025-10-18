@@ -8,8 +8,7 @@ var key = Environment.GetEnvironmentVariable("GEMINI_DOTNET_API_KEY")
 var options = new GeminiClientOptions
 {
     ApiKey = key,
-    ModelId = GeminiModels.Gemini2Flash,
-    ApiVersion = GeminiApiVersions.V1Beta,
+    ModelId = "gemini-2.5-flash",
     RequestTimeout = TimeSpan.FromMinutes(5),
 };
 

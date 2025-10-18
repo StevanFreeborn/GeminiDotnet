@@ -10,7 +10,7 @@ public sealed class GeminiChatClientTests
 {
     private readonly ITestOutputHelper _output;
     private readonly string _apiKey;
-    private readonly string _model = GeminiModels.Gemini2Flash;
+    private const string Model = "gemini-2.5-flash-lite";
 
     public GeminiChatClientTests(ITestOutputHelper output)
     {
@@ -26,9 +26,7 @@ public sealed class GeminiChatClientTests
 
         var geminiClient = new GeminiChatClient(new GeminiClientOptions
         {
-            ApiKey = _apiKey,
-            ModelId = _model,
-            ApiVersion = GeminiApiVersions.V1Beta,
+            ApiKey = _apiKey, ModelId = Model,
         });
 
         [Description("Gets the current weather")]
@@ -93,9 +91,7 @@ public sealed class GeminiChatClientTests
 
         var geminiClient = new GeminiChatClient(new GeminiClientOptions
         {
-            ApiKey = _apiKey,
-            ModelId = _model,
-            ApiVersion = GeminiApiVersions.V1Beta
+            ApiKey = _apiKey, ModelId = Model,
         });
 
         [Description("Gets the current weather")]
@@ -167,5 +163,84 @@ public sealed class GeminiChatClientTests
 
         // Assert
         Assert.Equal(3, response.Messages.Count);
+    }
+
+    [Fact]
+    public async Task InstructionAndSystemMessage()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var geminiClient = new GeminiChatClient(new GeminiClientOptions
+        {
+            ApiKey = _apiKey, ModelId = "gemini-2.5-flash",
+        });
+
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.System, "You are a helpful assistant that translates text."),
+            new(ChatRole.User, "Translate the following text to French: 'Hello, how are you?'"),
+        };
+
+        var options = new ChatOptions { Instructions = "Please provide a concise translation.", };
+
+        var response = geminiClient.GetStreamingResponseAsync(messages, options, cancellationToken);
+
+        var sb = new StringBuilder();
+
+        await foreach (var update in response)
+        {
+            foreach (var content in update.Contents)
+            {
+                sb.Append(content);
+                _output.Write(content.ToString() ?? "<null>");
+            }
+        }
+    }
+    
+    [Fact]
+    public async Task FunctionCallingExample()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        IChatClient geminiClient = new GeminiChatClient(new GeminiClientOptions
+        {
+            ApiKey = _apiKey,
+            ModelId = "gemini-2.5-flash",
+        });
+
+        [Description("Gets the current weather")]
+        static string GetCurrentWeather(string location, DateOnly date)
+        {
+            return $"It's raining in {location} on {date}.";
+        }
+
+        IChatClient client = new ChatClientBuilder(geminiClient)
+            .UseFunctionInvocation()
+            .Build();
+
+        List<ChatMessage> messages =
+        [
+            new(ChatRole.User,
+                "Should I wear a rain coat in London tomorrow (1st Oct, 2000)? Get the current weather using the function if needed.")
+        ];
+
+        var options = new ChatOptions
+        {
+            Tools = [AIFunctionFactory.Create(GetCurrentWeather, nameof(GetCurrentWeather))]
+        };
+
+        var response = await client.GetResponseAsync(messages, options, cancellationToken);
+        
+        messages.AddRange(response.Messages);
+        messages.Add(new ChatMessage(ChatRole.User, "Thanks!"));
+        
+        var response2 = await client.GetResponseAsync(messages, options, cancellationToken);
+        
+        messages.AddRange(response2.Messages);
+
+        Assert.All(
+            messages.Where(m => m.Contents.Any(c => c is TextReasoningContent)),
+            content => Assert.All(content.Contents.OfType<TextReasoningContent>(),
+                reasoningContent => Assert.NotNull(reasoningContent.ProtectedData)));
     }
 }
