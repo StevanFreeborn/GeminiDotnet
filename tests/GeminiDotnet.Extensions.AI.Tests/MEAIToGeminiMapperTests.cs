@@ -8,6 +8,11 @@ namespace GeminiDotnet.Extensions.AI;
 
 public sealed class MEAIToGeminiMapperTests
 {
+    [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
+    public MEAIToGeminiMapperTests()
+    {
+    }
+
     [Fact]
     public void CreateMappedGenerateRequest_WithSystemRole_ShouldPopulateSystemInstruction()
     {
@@ -175,7 +180,7 @@ public sealed class MEAIToGeminiMapperTests
         Assert.Equal(expectedFunction.Description, functionDeclaration.Description);
 
         // Tricky to compare the schema directly, so just check the type for now.
-        Assert.Equal(Schema.FromJsonElement(expectedFunction.JsonSchema).GetType(),
+        Assert.Equal(Schema.FromJsonElement(expectedFunction.JsonSchema, expectedFunction.JsonSchema).GetType(),
             functionDeclaration.Parameters?.GetType());
     }
 
@@ -207,6 +212,20 @@ public sealed class MEAIToGeminiMapperTests
 
         // Assert
         Assert.Equal(thinkingConfig, request.GenerationConfiguration?.ThinkingConfiguration);
+    }
+
+    [Theory]
+    [ClassData(typeof(ResponseFormatTestCases))]
+    public void CreateMappedGenerateContentRequest_WhenCalledWithResponseFormat_ItShouldMapResponseFormat(ResponseFormatTestCase testCase)
+    {
+        var options = new ChatOptions
+        {
+            ResponseFormat = ChatResponseFormat.ForJsonSchema(testCase.SchemaType)
+        };
+
+        var request = MEAIToGeminiMapper.CreateMappedGenerateContentRequest([], options);
+
+        Assert.Equivalent(testCase.ExpectedSchema, request.GenerationConfiguration?.ResponseSchema);
     }
 
     [Fact]
